@@ -41,9 +41,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [seekRequest, setSeekRequest] = useState(null);
 
-  const [engine, setEngine] = useState('resnet');
   const [healthStatus, setHealthStatus] = useState(null);
-
   const [history, setHistory] = useState(() => loadSavedHistory());
 
   useEffect(() => {
@@ -62,7 +60,7 @@ export default function App() {
     };
   }, [videoUrl]);
 
-  // Check health and detect running engines
+  // Check health of ResNet-50 backend
   useEffect(() => {
     let isMounted = true;
     fetch('/api/health')
@@ -70,11 +68,6 @@ export default function App() {
       .then((data) => {
         if (isMounted && data) {
           setHealthStatus(data);
-          if (data.resnetRunning) {
-            setEngine('resnet');
-          } else if (data.geminiConfigured) {
-            setEngine('gemini');
-          }
         }
       })
       .catch(() => undefined);
@@ -151,7 +144,6 @@ export default function App() {
     try {
       const formData = new FormData();
       formData.append('video', uploadedFile);
-      formData.append('engine', engine);
       if (telemetry?.durationSec) {
         formData.append('durationSec', String(telemetry.durationSec));
       }
@@ -315,7 +307,7 @@ export default function App() {
                   Video Deepfake Detection Workbench
                 </h1>
                 <p className="text-sm sm:text-base text-slate-300 mt-1.5 leading-relaxed">
-                  Upload any video clip to inspect sampled frames and receive an AI forensic prediction with confidence scoring, model selection (ResNet-50 CNN or Gemini), and timestamped evidence.
+                  Upload any video clip to inspect sampled frames and receive an AI forensic prediction with confidence scoring powered by the balanced ResNet-50 deepfake detection model.
                 </p>
               </div>
             </div>
@@ -348,8 +340,6 @@ export default function App() {
                   error={error}
                   prediction={prediction}
                   fileName={telemetry?.fileName || null}
-                  engine={engine}
-                  onSelectEngine={setEngine}
                   healthStatus={healthStatus}
                   onRunPrediction={handleRunPrediction}
                   onSeekTimestamp={(timestampSec) =>
@@ -386,8 +376,8 @@ export default function App() {
 
       <footer className="border-t border-slate-800 bg-slate-950">
         <div className="max-w-[1360px] mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-400">
-          <span>DEKHTE HAIN · Dual-Engine Media Authenticity Inspection</span>
-          <span>Supports ResNet-50 (Celeb-DF v2) & Gemini Multimodal Forensics</span>
+          <span>DEKHTE HAIN · Media Authenticity Inspection</span>
+          <span>Powered by ResNet-50 (resnet50-balanced-best.pth)</span>
         </div>
       </footer>
     </div>

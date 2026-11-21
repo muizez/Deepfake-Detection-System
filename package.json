@@ -9,10 +9,9 @@
     "start": "node server.js",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "node --check server.js && node --check vite.config.js && node --check src/server/geminiForensics.js && node --check src/lib/forensics.js && node --test src/lib/forensics.test.js"
+    "lint": "node --check server.js && node --check vite.config.js && node --check src/lib/forensics.js && node --test src/lib/forensics.test.js"
   },
   "dependencies": {
-    "@google/genai": "^3.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^4.3.4",
     "dotenv": "^17.2.3",

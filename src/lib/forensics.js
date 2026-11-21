@@ -113,7 +113,7 @@ export function normalizeSeverity(raw) {
   return 'low';
 }
 
-export function normalizePredictionResult(raw = {}, modelUsed = 'gemini-4-hydrogen') {
+export function normalizePredictionResult(raw = {}, modelUsed = 'ResNet-50 (resnet50-balanced-best)') {
   const signals = {
     facialLipSync: clampPercentage(raw.signals?.facialLipSync ?? 50),
     temporalCoherence: clampPercentage(raw.signals?.temporalCoherence ?? 50),

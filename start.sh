@@ -6,12 +6,29 @@ cd "$DIR"
 
 echo "=== Starting Veritas / DEKHTE HAIN AI Services ==="
 
+# Locate Python environment with PyTorch and dependencies
+PY_BIN=""
+if [ -x "$DIR/.venv/bin/python3" ]; then
+    PY_BIN="$DIR/.venv/bin/python3"
+elif [ -x "$DIR/.venv/bin/python" ]; then
+    PY_BIN="$DIR/.venv/bin/python"
+elif [ -x "/home/makintosh/anaconda3/bin/python" ]; then
+    PY_BIN="/home/makintosh/anaconda3/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PY_BIN="$(command -v python3)"
+else
+    echo "ERROR: No suitable Python binary found." >&2
+    exit 1
+fi
+
+echo "[Backend] Using Python binary: $PY_BIN"
+
 # Check if Python ResNet-50 backend is running
 if ss -tulpn 2>/dev/null | grep -q ':5000\b' || lsof -Pi :5000 -sTCP:LISTEN -t >/dev/null 2>&1; then
     echo "[Backend] Port 5000 is already in use (ResNet-50 backend is running)."
 else
     echo "[Backend] Launching ResNet-50 Flask backend on port 5000..."
-    "$DIR/.venv/bin/python3" "$DIR/backend/app.py" > /tmp/backend.log 2>&1 &
+    "$PY_BIN" "$DIR/backend/app.py" > /tmp/backend.log 2>&1 &
     echo "[Backend] Started in background (logs at /tmp/backend.log)."
 fi
 

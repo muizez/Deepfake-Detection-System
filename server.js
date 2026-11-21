@@ -4,7 +4,6 @@ import multer from 'multer';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MAX_VIDEO_SIZE_BYTES, validateVideoFile } from './src/lib/forensics.js';
-import { analyzeVideoForDeepfake } from './src/server/geminiForensics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,15 +22,12 @@ const upload = multer({
 });
 
 app.get('/api/health', async (_req, res) => {
-  const key = process.env.GEMINI_API_KEY?.trim();
-  const geminiConfigured = Boolean(key && key !== 'MY_GEMINI_API_KEY');
-
   let resnetRunning = false;
   let resnetDetails = null;
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 800);
+    const timeout = setTimeout(() => controller.abort(), 1000);
     const pyRes = await fetch(`${PYTHON_BACKEND_URL}/health`, { signal: controller.signal });
     clearTimeout(timeout);
     if (pyRes.ok) {
@@ -44,7 +40,6 @@ app.get('/api/health', async (_req, res) => {
 
   res.json({
     ok: true,
-    geminiConfigured,
     resnetRunning,
     resnetDetails,
   });
@@ -70,81 +65,51 @@ app.post('/api/predict', upload.single('video'), async (req, res) => {
 
     const rawDuration = Number(req.body?.durationSec);
     const durationSec = Number.isFinite(rawDuration) && rawDuration > 0 ? rawDuration : undefined;
-    const engine = (req.body?.engine || req.query?.engine || 'resnet').trim().toLowerCase();
 
-    // Route to Python ResNet-50 Backend
-    if (engine === 'resnet') {
-      try {
-        const pyFormData = new FormData();
-        const fileBlob = new Blob([req.file.buffer], { type: req.file.mimetype || 'video/mp4' });
-        pyFormData.append('video', fileBlob, req.file.originalname);
-        if (durationSec) {
-          pyFormData.append('durationSec', String(durationSec));
-        }
+    // Route directly to Python ResNet-50 Backend (resnet50-balanced-best)
+    try {
+      const pyFormData = new FormData();
+      const fileBlob = new Blob([req.file.buffer], { type: req.file.mimetype || 'video/mp4' });
+      pyFormData.append('video', fileBlob, req.file.originalname);
+      if (durationSec) {
+        pyFormData.append('durationSec', String(durationSec));
+      }
 
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout for video processing
-        const pyResponse = await fetch(`${PYTHON_BACKEND_URL}/predict`, {
-          method: 'POST',
-          body: pyFormData,
-          signal: controller.signal,
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000); // 120s timeout for video processing
+      const pyResponse = await fetch(`${PYTHON_BACKEND_URL}/predict`, {
+        method: 'POST',
+        body: pyFormData,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      const pyData = await pyResponse.json().catch(() => ({}));
+      if (!pyResponse.ok) {
+        throw new Error(pyData.error || `ResNet-50 service returned status ${pyResponse.status}.`);
+      }
+
+      res.json({ prediction: pyData.prediction || pyData });
+    } catch (err) {
+      const isNetworkErr =
+        err?.name === 'AbortError' ||
+        err?.code === 'ECONNREFUSED' ||
+        err?.message?.includes('fetch failed');
+
+      if (isNetworkErr) {
+        res.status(503).json({
+          error:
+            'ResNet-50 backend is not responding on port 5000. ' +
+            'Please ensure the Python backend is running ("./start.sh" or "python3 backend/app.py").',
         });
-        clearTimeout(timeout);
-
-        const pyData = await pyResponse.json().catch(() => ({}));
-        if (!pyResponse.ok) {
-          throw new Error(pyData.error || `ResNet-50 service returned status ${pyResponse.status}.`);
-        }
-
-        res.json({ prediction: pyData.prediction || pyData });
-        return;
-      } catch (err) {
-        const isNetworkErr =
-          err?.name === 'AbortError' ||
-          err?.code === 'ECONNREFUSED' ||
-          err?.message?.includes('fetch failed');
-
-        if (isNetworkErr) {
-          res.status(503).json({
-            error:
-              'Python ResNet-50 backend is not responding on port 5000. ' +
-              'Start it with: "python3 backend/app.py" or toggle the engine to Gemini in the prediction panel.',
-          });
-          return;
-        }
-
-        res.status(500).json({ error: err.message || 'ResNet-50 inference failed.' });
         return;
       }
+
+      res.status(500).json({ error: err.message || 'ResNet-50 inference failed.' });
     }
-
-    // Route to Cloud Gemini Multimodal Model
-    const prediction = await analyzeVideoForDeepfake({
-      buffer: req.file.buffer,
-      mimeType: req.file.mimetype || 'video/mp4',
-      fileName: req.file.originalname,
-      durationSec,
-    });
-
-    res.json({ prediction });
   } catch (error) {
     const status = error?.statusCode || error?.status || 500;
     const message = error?.message || 'Unexpected error while analyzing the uploaded video.';
-
-    if (message.includes('API_KEY_INVALID') || message.includes('PERMISSION_DENIED')) {
-      res.status(403).json({
-        error: 'The configured GEMINI_API_KEY was rejected. Please verify it in Settings > Secrets or switch to the ResNet-50 engine.',
-      });
-      return;
-    }
-
-    if (message.includes('RESOURCE_EXHAUSTED') || status === 429) {
-      res.status(429).json({
-        error: 'Model quota exceeded. Please wait a moment and retry, or use the local ResNet-50 engine.',
-      });
-      return;
-    }
-
     res.status(status >= 400 && status < 600 ? status : 500).json({ error: message });
   }
 });
@@ -179,7 +144,7 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`DEKHTE HAIN server listening on http://0.0.0.0:${PORT}`);
-    console.log(`Configured ResNet-50 Python backend URL: ${PYTHON_BACKEND_URL}`);
+    console.log(`Connected ResNet-50 Python backend URL: ${PYTHON_BACKEND_URL}`);
   });
 }
 
