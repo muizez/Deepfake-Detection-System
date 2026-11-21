@@ -2,11 +2,13 @@ import {
   AlertCircle,
   AlertTriangle,
   Clock,
+  Cpu,
   Download,
   RefreshCw,
   ScanSearch,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import { formatTimestamp, getVerdictPresentation } from '../lib/forensics.js';
 
@@ -46,11 +48,15 @@ export function PredictionPanel({
   error,
   prediction,
   fileName,
+  engine = 'resnet',
+  onSelectEngine,
+  healthStatus,
   onRunPrediction,
   onSeekTimestamp,
   onExportReport,
 }) {
   if (isAnalyzing) {
+    const isResNet = engine === 'resnet';
     return (
       <aside
         aria-label="Prediction in progress"
@@ -63,7 +69,7 @@ export function PredictionPanel({
           </div>
           <div>
             <h2 className="font-display text-base font-semibold text-slate-50">
-              Running Deepfake Prediction
+              Running {isResNet ? 'ResNet-50' : 'Gemini'} Prediction
             </h2>
             <p className="text-xs text-slate-400">
               Evaluating spatial and temporal artifacts on {fileName || 'uploaded clip'}
@@ -72,12 +78,20 @@ export function PredictionPanel({
         </div>
 
         <div className="space-y-3 mb-6">
-          {[
-            'Streaming video payload to forensic model',
-            'Inspecting facial boundaries and lip-sync cadence',
-            'Checking temporal motion and illumination physics',
-            'Calibrating prediction confidence score',
-          ].map((step) => (
+          {(isResNet
+            ? [
+                'Streaming video frames to local PyTorch ResNet-50 engine',
+                'Extracting 16 sampled frames across video duration',
+                'Evaluating binary deepfake logits on Celeb-DF v2 weights',
+                'Aggregating temporal stability and frame anomaly findings',
+              ]
+            : [
+                'Streaming video payload to forensic model',
+                'Inspecting facial boundaries and lip-sync cadence',
+                'Checking temporal motion and illumination physics',
+                'Calibrating prediction confidence score',
+              ]
+          ).map((step) => (
             <div key={step} className="flex items-center gap-3 text-sm text-slate-300">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" aria-hidden="true" />
               <span>{step}</span>
@@ -97,6 +111,50 @@ export function PredictionPanel({
   if (error) {
     return (
       <aside aria-label="Prediction error" className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+        {/* Engine selector inside error view to easily switch engine */}
+        {onSelectEngine && (
+          <div className="mb-4 p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Detection Engine
+              </span>
+              <span className="text-xs font-mono text-slate-400">
+                Switch engine & retry
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onSelectEngine('resnet')}
+                className={`px-3 py-2 rounded-md text-xs font-medium text-left transition-all ${
+                  engine === 'resnet'
+                    ? 'bg-blue-600 text-white font-semibold'
+                    : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Cpu className="w-3.5 h-3.5" />
+                  <span>ResNet-50 CNN</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => onSelectEngine('gemini')}
+                className={`px-3 py-2 rounded-md text-xs font-medium text-left transition-all ${
+                  engine === 'gemini'
+                    ? 'bg-blue-600 text-white font-semibold'
+                    : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Gemini Cloud</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
         <div role="alert" className="bg-red-950/50 border border-red-800/80 rounded-lg p-4 text-red-100">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" aria-hidden="true" />
@@ -133,9 +191,91 @@ export function PredictionPanel({
           </h2>
         </div>
 
+        {/* Engine selector */}
+        {onSelectEngine && (
+          <div className="mb-5 p-3.5 bg-slate-950/70 border border-slate-800 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Active Detection Engine
+              </span>
+              {engine === 'resnet' ? (
+                <span className="inline-flex items-center gap-1.5 text-xs">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      healthStatus?.resnetRunning ? 'bg-emerald-400' : 'bg-amber-400'
+                    }`}
+                  />
+                  <span
+                    className={`font-mono ${
+                      healthStatus?.resnetRunning ? 'text-emerald-400' : 'text-amber-400'
+                    }`}
+                  >
+                    {healthStatus?.resnetRunning ? 'Local Port 5000' : 'Local ResNet-50'}
+                  </span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      healthStatus?.geminiConfigured ? 'bg-emerald-400' : 'bg-amber-400'
+                    }`}
+                  />
+                  <span
+                    className={`font-mono ${
+                      healthStatus?.geminiConfigured ? 'text-emerald-400' : 'text-amber-400'
+                    }`}
+                  >
+                    {healthStatus?.geminiConfigured ? 'Gemini Ready' : 'API Key Required'}
+                  </span>
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onSelectEngine('resnet')}
+                className={`p-2.5 rounded-lg text-left transition-all cursor-pointer ${
+                  engine === 'resnet'
+                    ? 'bg-blue-600 text-white font-medium shadow-sm'
+                    : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-semibold text-xs">
+                  <Cpu className="w-3.5 h-3.5 shrink-0" />
+                  <span>ResNet-50 CNN</span>
+                </div>
+                <p className="text-[11px] opacity-80 mt-1 line-clamp-1">
+                  Celeb-DF PyTorch Model
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onSelectEngine('gemini')}
+                className={`p-2.5 rounded-lg text-left transition-all cursor-pointer ${
+                  engine === 'gemini'
+                    ? 'bg-blue-600 text-white font-medium shadow-sm'
+                    : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-semibold text-xs">
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span>Gemini Cloud</span>
+                </div>
+                <p className="text-[11px] opacity-80 mt-1 line-clamp-1">
+                  Multimodal Forensic AI
+                </p>
+              </button>
+            </div>
+          </div>
+        )}
+
         <p className="text-sm text-slate-300 leading-relaxed mb-5">
           {hasUploadedFile
-            ? 'Your video is staged and ready. Run the detection model to compute a verdict, confidence percentage, and timestamped artifact findings.'
+            ? `Your video is staged. Run the ${
+                engine === 'resnet' ? 'ResNet-50 CNN' : 'Gemini AI'
+              } model to compute a verdict, confidence percentage, and timestamped artifact findings.`
             : 'Upload a video clip or load a reference benchmark to view the deepfake prediction, confidence metrics, and frame-level evidence.'}
         </p>
 
@@ -146,7 +286,7 @@ export function PredictionPanel({
             className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors mb-6 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <ScanSearch className="w-4 h-4" aria-hidden="true" />
-            <span>Run Prediction</span>
+            <span>Run {engine === 'resnet' ? 'ResNet-50' : 'Gemini'} Prediction</span>
           </button>
         )}
 
@@ -178,6 +318,37 @@ export function PredictionPanel({
 
   return (
     <aside aria-label="Prediction result" className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-6">
+      {/* Engine selector pill */}
+      {onSelectEngine && (
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs">
+          <span className="text-slate-400">Model Engine:</span>
+          <div className="inline-flex rounded-md bg-slate-950 p-1 border border-slate-800">
+            <button
+              type="button"
+              onClick={() => onSelectEngine('resnet')}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                engine === 'resnet'
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              ResNet-50
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectEngine('gemini')}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                engine === 'gemini'
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Gemini
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className={`border rounded-lg p-4 ${presentation.bannerClasses}`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -321,7 +492,7 @@ export function PredictionPanel({
             className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-blue-300 bg-blue-500/15 hover:bg-blue-500/25 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Re-run Prediction</span>
+            <span>Re-run ({engine === 'resnet' ? 'ResNet-50' : 'Gemini'})</span>
           </button>
         )}
       </div>

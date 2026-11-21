@@ -1,3 +1,18 @@
+const ENGINES = [
+  {
+    tag: 'LOCAL CNN',
+    title: 'ResNet-50 (Celeb-DF v2 Model)',
+    desc: 'Fine-tuned deep convolutional neural network trained on over 5,600 real and synthesized celebrity videos. Uniformly extracts 16 video keyframes, normalizes tensors, and calculates per-frame synthetic probabilities and temporal variance directly via PyTorch.',
+    badge: 'Offline / Fast Edge Inference',
+  },
+  {
+    tag: 'CLOUD MULTIMODAL',
+    title: 'Gemini 4 Multimodal Forensics',
+    desc: 'High-parameter multimodal reasoning model analyzing full-spectrum audio-visual integrity, perioral phoneme-to-viseme synchronization, directional specular reflections, and micro-expression stiffness with chronological timestamped citations.',
+    badge: 'Deep Forensic Semantic Reasoning',
+  },
+];
+
 const DIMENSIONS = [
   {
     index: '01.',
@@ -51,22 +66,51 @@ export function MethodologyView() {
     <section aria-label="Detection methodology" className="space-y-8">
       <div className="max-w-2xl">
         <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-slate-50">
-          Detection Methodology
+          Detection Methodology & Dual Engines
         </h1>
         <p className="text-sm sm:text-base text-slate-300 mt-2 leading-relaxed">
-          Uploaded videos are evaluated end-to-end across four complementary forensic signal categories before calibrating a final prediction verdict.
+          DEKHTE HAIN pairs a dedicated local PyTorch ResNet-50 computer vision pipeline with a cloud-scale multimodal forensic model, enabling both rapid offline verification and comprehensive media analysis.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {DIMENSIONS.map((dim) => (
-          <div key={dim.index} className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <h2 className="font-display text-lg font-semibold text-slate-50 mb-2">
-              {dim.index} {dim.title}
-            </h2>
-            <p className="text-sm text-slate-300 leading-relaxed">{dim.detail}</p>
-          </div>
-        ))}
+      <div className="space-y-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Supported Detection Engines
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {ENGINES.map((eng) => (
+            <div key={eng.title} className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-blue-500/15 text-blue-400">
+                    {eng.tag}
+                  </span>
+                  <span className="text-xs text-slate-400">{eng.badge}</span>
+                </div>
+                <h3 className="font-display text-lg font-semibold text-slate-50 mb-2">
+                  {eng.title}
+                </h3>
+                <p className="text-sm text-slate-300 leading-relaxed">{eng.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Evaluated Forensic Dimensions
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {DIMENSIONS.map((dim) => (
+            <div key={dim.index} className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+              <h3 className="font-display text-base font-semibold text-slate-50 mb-2">
+                {dim.index} {dim.title}
+              </h3>
+              <p className="text-sm text-slate-300 leading-relaxed">{dim.detail}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
