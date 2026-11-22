@@ -4,7 +4,7 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
-echo "=== Starting Veritas / DEKHTE HAIN AI Services ==="
+echo "=== Starting DeepTrace / ResNet-50 AI Services ==="
 
 # Locate Python environment with PyTorch and dependencies
 PY_BIN=""
@@ -40,5 +40,5 @@ if ss -tulpn 2>/dev/null | grep -q ':3000\b' || lsof -Pi :3000 -sTCP:LISTEN -t >
     echo "[Frontend/API] Port 3000 is already in use."
 else
     echo "[Frontend/API] Launching Express + Vite server on http://localhost:3000..."
-    node "$DIR/server.js"
+    node "$DIR/backend/server.js"
 fi

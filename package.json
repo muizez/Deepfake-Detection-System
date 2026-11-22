@@ -1,23 +1,20 @@
 {
-  "name": "react-example",
+  "name": "deeptrace-resnet50",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node server.js",
+    "dev": "node backend/server.js",
     "build": "vite build",
-    "start": "node server.js",
+    "start": "node backend/server.js",
     "preview": "vite preview",
-    "clean": "rm -rf dist",
-    "lint": "node --check server.js && node --check vite.config.js && node --check src/lib/forensics.js && node --test src/lib/forensics.test.js"
+    "clean": "rm -rf frontend/dist dist"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^4.3.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
-    "lucide-react": "^0.546.0",
-    "motion": "^12.23.24",
     "multer": "^2.5.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",

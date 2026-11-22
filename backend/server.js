@@ -3,14 +3,50 @@ import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MAX_VIDEO_SIZE_BYTES, validateVideoFile } from './src/lib/forensics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const frontendDir = path.resolve(__dirname, '../frontend');
+const distPath = path.resolve(frontendDir, 'dist');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:5000';
+
+const MAX_VIDEO_SIZE_BYTES = 45 * 1024 * 1024; // 45 MB
+const SUPPORTED_VIDEO_MIME_TYPES = [
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/x-matroska',
+  'video/ogg',
+];
+const SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.m4v', '.avi', '.mkv', '.ogv'];
+
+function validateVideoFile(file) {
+  if (!file || !file.name) {
+    return { valid: false, reason: 'Please select a valid video file.' };
+  }
+  if (file.size <= 0) {
+    return { valid: false, reason: 'The selected video file is empty (0 bytes).' };
+  }
+  if (file.size > MAX_VIDEO_SIZE_BYTES) {
+    return { valid: false, reason: 'Video exceeds the 45 MB upload limit.' };
+  }
+  const normalizedType = (file.type || '').toLowerCase().split(';')[0].trim();
+  const lowerName = file.name.toLowerCase();
+  const hasSupportedMime = SUPPORTED_VIDEO_MIME_TYPES.includes(normalizedType);
+  const hasSupportedExtension = SUPPORTED_VIDEO_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+
+  if (!hasSupportedMime && !hasSupportedExtension) {
+    return {
+      valid: false,
+      reason: 'Unsupported file format. Please upload an MP4, WebM, MOV, AVI, or MKV video.',
+    };
+  }
+  return { valid: true };
+}
 
 app.use(express.json({ limit: '2mb' }));
 
@@ -66,7 +102,6 @@ app.post('/api/predict', upload.single('video'), async (req, res) => {
     const rawDuration = Number(req.body?.durationSec);
     const durationSec = Number.isFinite(rawDuration) && rawDuration > 0 ? rawDuration : undefined;
 
-    // Route directly to Python ResNet-50 Backend (resnet50-balanced-best)
     try {
       const pyFormData = new FormData();
       const fileBlob = new Blob([req.file.buffer], { type: req.file.mimetype || 'video/mp4' });
@@ -76,7 +111,7 @@ app.post('/api/predict', upload.single('video'), async (req, res) => {
       }
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120000); // 120s timeout for video processing
+      const timeout = setTimeout(() => controller.abort(), 120000); // 120s timeout
       const pyResponse = await fetch(`${PYTHON_BACKEND_URL}/predict`, {
         method: 'POST',
         body: pyFormData,
@@ -130,12 +165,12 @@ async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
+      root: frontendDir,
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
@@ -143,8 +178,8 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`DEKHTE HAIN server listening on http://0.0.0.0:${PORT}`);
-    console.log(`Connected ResNet-50 Python backend URL: ${PYTHON_BACKEND_URL}`);
+    console.log(`DEEPTRACE server listening on http://0.0.0.0:${PORT}`);
+    console.log(`Connected ResNet-50 Python backend: ${PYTHON_BACKEND_URL}`);
   });
 }
 
