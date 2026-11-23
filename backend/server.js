@@ -2,6 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
+import fs from 'node:fs';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -57,13 +59,66 @@ const upload = multer({
   },
 });
 
+let pythonProcess = null;
+
+async function ensurePythonBackend() {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1000);
+    const pyRes = await fetch(`${PYTHON_BACKEND_URL}/health`, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (pyRes.ok) {
+      console.log(`[ResNet-50 Backend] Already active at ${PYTHON_BACKEND_URL}`);
+      return;
+    }
+  } catch {}
+
+  console.log(`[ResNet-50 Backend] Not responding on port 5000. Launching automatically...`);
+
+  // Detect python executable
+  const venvPy = path.resolve(__dirname, '../.venv/bin/python3');
+  const anacondaPy = '/home/makintosh/anaconda3/bin/python';
+  let pyBin = 'python3';
+  if (fs.existsSync(venvPy)) {
+    pyBin = venvPy;
+  } else if (fs.existsSync(anacondaPy)) {
+    pyBin = anacondaPy;
+  }
+
+  const appPyPath = path.resolve(__dirname, 'app.py');
+  pythonProcess = spawn(pyBin, [appPyPath], {
+    stdio: 'inherit',
+    detached: false,
+  });
+
+  pythonProcess.on('error', (err) => {
+    console.error(`[ResNet-50 Backend] Failed to spawn: ${err.message}`);
+  });
+
+  // Poll for up to 10 seconds for backend to finish loading model weights
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    try {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), 800);
+      const res = await fetch(`${PYTHON_BACKEND_URL}/health`, { signal: c.signal });
+      clearTimeout(t);
+      if (res.ok) {
+        console.log(`[ResNet-50 Backend] Successfully online and verified!`);
+        return;
+      }
+    } catch {}
+  }
+  console.warn(`[ResNet-50 Backend] Warning: Model is still initializing on port 5000.`);
+}
+
 app.get('/api/health', async (_req, res) => {
   let resnetRunning = false;
   let resnetDetails = null;
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1000);
+    const timeout = setTimeout(() => controller.abort(), 1500);
     const pyRes = await fetch(`${PYTHON_BACKEND_URL}/health`, { signal: controller.signal });
     clearTimeout(timeout);
     if (pyRes.ok) {
@@ -132,10 +187,12 @@ app.post('/api/predict', upload.single('video'), async (req, res) => {
         err?.message?.includes('fetch failed');
 
       if (isNetworkErr) {
+        // Attempt quick revival if process died
+        ensurePythonBackend().catch(() => {});
         res.status(503).json({
           error:
-            'ResNet-50 backend is not responding on port 5000. ' +
-            'Please ensure the Python backend is running ("./start.sh" or "python3 backend/app.py").',
+            'ResNet-50 backend is starting or not responding on port 5000. ' +
+            'Backend initialization was triggered—please wait 5 seconds and retry.',
         });
         return;
       }
@@ -162,6 +219,8 @@ app.use((err, _req, res, next) => {
 });
 
 async function startServer() {
+  await ensurePythonBackend();
+
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -182,5 +241,15 @@ async function startServer() {
     console.log(`Connected ResNet-50 Python backend: ${PYTHON_BACKEND_URL}`);
   });
 }
+
+// Clean up child process on exit
+process.on('SIGINT', () => {
+  if (pythonProcess) pythonProcess.kill();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  if (pythonProcess) pythonProcess.kill();
+  process.exit(0);
+});
 
 startServer();
