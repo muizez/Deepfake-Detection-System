@@ -66,15 +66,15 @@ export function Overview({
             <em>what's real.</em>
           </h1>
           <p className="hero-deck">
-            An intelligent forensic system powered by the balanced ResNet-50 deepfake detection model.
-            Extracts 20 uniform video keyframes and evaluates manipulation patterns at 224×224 resolution.
+            An intelligent forensic system powered by the EfficientNet-B3 deepfake detection model.
+            Extracts 20 uniform video keyframes and evaluates manipulation patterns at 300×300 resolution.
           </p>
           <button className="text-link" onClick={() => (selectedFile ? onStartAnalysis() : inputRef.current?.click())}>
             {selectedFile ? 'ANALYZE SELECTED FOOTAGE' : 'BEGIN AN INVESTIGATION'} <Icon name="arrow" />
           </button>
         </div>
         <ArtifactVisual />
-        <p className="vertical-note">AUTHENTICITY / RESNET-50 / CELEB-DF</p>
+        <p className="vertical-note">AUTHENTICITY / EFFICIENTNET-B3 / CELEB-DF</p>
       </section>
 
       <section className="metrics">
@@ -86,7 +86,7 @@ export function Overview({
           [String(totalAnalyzed), 'Videos analyzed in session'],
           [String(authenticCount), 'Classified as authentic'],
           [String(manipulatedCount), 'Identified as manipulated'],
-          ['0.30', 'Calibrated decision threshold'],
+          ['0.50', 'Calibrated decision threshold'],
         ].map(([value, label], i) => (
           <div className={`metric m${i}`} key={label}>
             <sup>0{i + 1}</sup>
@@ -95,7 +95,7 @@ export function Overview({
           </div>
         ))}
         <p className="metric-note">
-          Predictions evaluated using resnet50-balanced-best.pth on Celeb-DF v2 dataset.
+          Predictions evaluated using efficientnet_b3_best.pth on Celeb-DF v2 dataset.
         </p>
       </section>
 
@@ -111,7 +111,7 @@ export function Overview({
             <em>a file.</em>
           </h2>
           <p>
-            Drop your video footage. The ResNet-50 CNN will examine
+            Drop your video footage. The EfficientNet-B3 CNN will examine
             <br />
             spatial boundaries and subtle temporal manipulation.
           </p>

@@ -25,7 +25,7 @@ export function ArtifactVisual({
       <div className="artifact-code">
         {frameCode}
         <br />
-        [RESNET-50 / BALANCED]
+        [EFFICIENTNET-B3 / BEST]
         <br />
         {anomalyScore !== undefined ? `RISK: ${anomalyScore.toFixed(1)}%` : '84.17.09.220'}
       </div>

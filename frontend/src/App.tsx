@@ -38,7 +38,7 @@ const INITIAL_INVESTIGATIONS: InvestigationRecord[] = [
           observation: 'Natural facial landmarks verified on opening sequence.',
         },
       ],
-      modelUsed: 'ResNet-50 (resnet50-balanced-best)',
+      modelUsed: 'EfficientNet-B3 (efficientnet_b3_best.pth)',
       analyzedAt: '2025-05-19T14:32:00Z',
     },
   },
@@ -54,7 +54,7 @@ const INITIAL_INVESTIGATIONS: InvestigationRecord[] = [
       verdict: 'DEEPFAKE',
       confidence: 92.8,
       manipulationProbability: 92.8,
-      summary: 'ResNet-50 identified spatial manipulation artifacts across perioral and chin boundary regions.',
+      summary: 'EfficientNet-B3 identified spatial manipulation artifacts across perioral and chin boundary regions.',
       signals: {
         facialLipSync: 18.2,
         temporalCoherence: 24.5,
@@ -69,7 +69,7 @@ const INITIAL_INVESTIGATIONS: InvestigationRecord[] = [
           observation: 'Synthetic manipulation pattern detected around mouth contour.',
         },
       ],
-      modelUsed: 'ResNet-50 (resnet50-balanced-best)',
+      modelUsed: 'EfficientNet-B3 (efficientnet_b3_best.pth)',
       analyzedAt: '2025-05-18T10:15:00Z',
     },
   },
@@ -93,7 +93,7 @@ const INITIAL_INVESTIGATIONS: InvestigationRecord[] = [
         audioVisualAlignment: 50.0,
       },
       findings: [],
-      modelUsed: 'ResNet-50 (resnet50-balanced-best)',
+      modelUsed: 'EfficientNet-B3 (efficientnet_b3_best.pth)',
       analyzedAt: '2025-05-17T08:20:00Z',
     },
   },
@@ -124,7 +124,7 @@ const INITIAL_INVESTIGATIONS: InvestigationRecord[] = [
           observation: 'Unnatural boundary blending along jawline.',
         },
       ],
-      modelUsed: 'ResNet-50 (resnet50-balanced-best)',
+      modelUsed: 'EfficientNet-B3 (efficientnet_b3_best.pth)',
       analyzedAt: '2025-05-17T16:45:00Z',
     },
   },
@@ -176,7 +176,7 @@ export default function App() {
     const check = async () => {
       const res = await checkBackendHealth();
       if (mounted) {
-        setIsBackendOnline(res.ok && Boolean(res.resnetRunning));
+        setIsBackendOnline(res.ok && Boolean(res.modelRunning ?? res.resnetRunning));
       }
     };
     check();
@@ -252,7 +252,7 @@ export default function App() {
     } catch (err: any) {
       clearInterval(progressTimer);
       setIsAnalyzing(false);
-      setError(err?.message || 'Error communicating with ResNet-50 backend.');
+      setError(err?.message || 'Error communicating with EfficientNet-B3 backend.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -339,7 +339,7 @@ export default function App() {
 
         <footer>
           <span>DEEPTRACE © 2026</span>
-          <span>POWERED BY RESNET-50 (resnet50-balanced-best.pth)</span>
+          <span>POWERED BY EFFICIENTNET-B3 (efficientnet_b3_best.pth)</span>
           <span>CELEB-DF V2 TRAINED MODEL</span>
         </footer>
       </main>

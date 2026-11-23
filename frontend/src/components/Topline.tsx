@@ -7,7 +7,7 @@ interface ToplineProps {
   modelName?: string;
 }
 
-export function Topline({ title, onMenu, modelName = 'RESNET-50 BALANCED' }: ToplineProps) {
+export function Topline({ title, onMenu, modelName = 'EFFICIENTNET-B3' }: ToplineProps) {
   const [utcTime, setUtcTime] = useState('');
 
   useEffect(() => {

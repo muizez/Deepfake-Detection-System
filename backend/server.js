@@ -68,18 +68,21 @@ async function ensurePythonBackend() {
     const pyRes = await fetch(`${PYTHON_BACKEND_URL}/health`, { signal: controller.signal });
     clearTimeout(timeout);
     if (pyRes.ok) {
-      console.log(`[ResNet-50 Backend] Already active at ${PYTHON_BACKEND_URL}`);
+      console.log(`[EfficientNet-B3 Backend] Already active at ${PYTHON_BACKEND_URL}`);
       return;
     }
   } catch {}
 
-  console.log(`[ResNet-50 Backend] Not responding on port 5000. Launching automatically...`);
+  console.log(`[EfficientNet-B3 Backend] Not responding on port 5000. Launching automatically...`);
 
   // Detect python executable
   const venvPy = path.resolve(__dirname, '../.venv/bin/python3');
+  const venvPyWin = path.resolve(__dirname, '../.venv/Scripts/python.exe');
   const anacondaPy = '/home/makintosh/anaconda3/bin/python';
   let pyBin = 'python3';
-  if (fs.existsSync(venvPy)) {
+  if (fs.existsSync(venvPyWin)) {
+    pyBin = venvPyWin;
+  } else if (fs.existsSync(venvPy)) {
     pyBin = venvPy;
   } else if (fs.existsSync(anacondaPy)) {
     pyBin = anacondaPy;
@@ -92,7 +95,7 @@ async function ensurePythonBackend() {
   });
 
   pythonProcess.on('error', (err) => {
-    console.error(`[ResNet-50 Backend] Failed to spawn: ${err.message}`);
+    console.error(`[EfficientNet-B3 Backend] Failed to spawn: ${err.message}`);
   });
 
   // Poll for up to 10 seconds for backend to finish loading model weights
@@ -104,17 +107,17 @@ async function ensurePythonBackend() {
       const res = await fetch(`${PYTHON_BACKEND_URL}/health`, { signal: c.signal });
       clearTimeout(t);
       if (res.ok) {
-        console.log(`[ResNet-50 Backend] Successfully online and verified!`);
+        console.log(`[EfficientNet-B3 Backend] Successfully online and verified!`);
         return;
       }
     } catch {}
   }
-  console.warn(`[ResNet-50 Backend] Warning: Model is still initializing on port 5000.`);
+  console.warn(`[EfficientNet-B3 Backend] Warning: Model is still initializing on port 5000.`);
 }
 
 app.get('/api/health', async (_req, res) => {
-  let resnetRunning = false;
-  let resnetDetails = null;
+  let modelRunning = false;
+  let modelDetails = null;
 
   try {
     const controller = new AbortController();
@@ -122,17 +125,19 @@ app.get('/api/health', async (_req, res) => {
     const pyRes = await fetch(`${PYTHON_BACKEND_URL}/health`, { signal: controller.signal });
     clearTimeout(timeout);
     if (pyRes.ok) {
-      resnetRunning = true;
-      resnetDetails = await pyRes.json().catch(() => null);
+      modelRunning = true;
+      modelDetails = await pyRes.json().catch(() => null);
     }
   } catch {
-    resnetRunning = false;
+    modelRunning = false;
   }
 
   res.json({
     ok: true,
-    resnetRunning,
-    resnetDetails,
+    modelRunning,
+    modelDetails,
+    resnetRunning: modelRunning,
+    resnetDetails: modelDetails,
   });
 });
 
@@ -176,7 +181,7 @@ app.post('/api/predict', upload.single('video'), async (req, res) => {
 
       const pyData = await pyResponse.json().catch(() => ({}));
       if (!pyResponse.ok) {
-        throw new Error(pyData.error || `ResNet-50 service returned status ${pyResponse.status}.`);
+        throw new Error(pyData.error || `EfficientNet-B3 service returned status ${pyResponse.status}.`);
       }
 
       res.json({ prediction: pyData.prediction || pyData });
@@ -191,13 +196,13 @@ app.post('/api/predict', upload.single('video'), async (req, res) => {
         ensurePythonBackend().catch(() => {});
         res.status(503).json({
           error:
-            'ResNet-50 backend is starting or not responding on port 5000. ' +
+            'EfficientNet-B3 backend is starting or not responding on port 5000. ' +
             'Backend initialization was triggered—please wait 5 seconds and retry.',
         });
         return;
       }
 
-      res.status(500).json({ error: err.message || 'ResNet-50 inference failed.' });
+      res.status(500).json({ error: err.message || 'EfficientNet-B3 inference failed.' });
     }
   } catch (error) {
     const status = error?.statusCode || error?.status || 500;
@@ -238,7 +243,7 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`DEEPTRACE server listening on http://0.0.0.0:${PORT}`);
-    console.log(`Connected ResNet-50 Python backend: ${PYTHON_BACKEND_URL}`);
+    console.log(`Connected EfficientNet-B3 Python backend: ${PYTHON_BACKEND_URL}`);
   });
 }
 

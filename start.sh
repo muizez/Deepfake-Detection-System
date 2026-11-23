@@ -4,10 +4,10 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
-echo "=== Starting DeepTrace / ResNet-50 AI Services ==="
+echo "=== Starting DeepTrace / EfficientNet-B3 AI Services ==="
 
 # Locate Python environment with PyTorch and dependencies
-PY_BIN=""
+PY_BIN=""./
 if [ -x "$DIR/.venv/bin/python3" ]; then
     PY_BIN="$DIR/.venv/bin/python3"
 elif [ -x "$DIR/.venv/bin/python" ]; then
@@ -23,11 +23,11 @@ fi
 
 echo "[Backend] Using Python binary: $PY_BIN"
 
-# Check if Python ResNet-50 backend is running
+# Check if Python EfficientNet-B3 backend is running
 if ss -tulpn 2>/dev/null | grep -q ':5000\b' || lsof -Pi :5000 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    echo "[Backend] Port 5000 is already in use (ResNet-50 backend is running)."
+    echo "[Backend] Port 5000 is already in use (EfficientNet-B3 backend is running)."
 else
-    echo "[Backend] Launching ResNet-50 Flask backend on port 5000..."
+    echo "[Backend] Launching EfficientNet-B3 Flask backend on port 5000..."
     "$PY_BIN" "$DIR/backend/app.py" > /tmp/backend.log 2>&1 &
     echo "[Backend] Started in background (logs at /tmp/backend.log)."
 fi

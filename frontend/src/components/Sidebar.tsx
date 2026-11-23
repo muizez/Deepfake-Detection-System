@@ -66,7 +66,7 @@ export function Sidebar({ page, go, open, close, isOnline = true }: SidebarProps
         </div>
         <div className="rail-foot">
           <span className={`live-dot ${isOnline ? '' : 'offline'}`} />
-          RESNET-50
+          EFFICIENTNET-B3
           <br />
           {isOnline ? 'OPERATIONAL' : 'OFFLINE'}
         </div>

@@ -2,25 +2,36 @@ import { normalizePredictionResult, type PredictionResult } from './forensics';
 
 export interface HealthResponse {
   ok: boolean;
-  resnetRunning: boolean;
-  resnetDetails?: {
+  modelRunning?: boolean;
+  modelDetails?: {
     modelFilename?: string;
+    modelDisplayName?: string;
+    architecture?: string;
     threshold?: number;
     device?: string;
     modelLoaded?: boolean;
     metadata?: Record<string, any>;
   } | null;
+  resnetRunning?: boolean;
+  resnetDetails?: any;
 }
 
 export async function checkBackendHealth(): Promise<HealthResponse> {
   try {
     const res = await fetch('/api/health');
     if (!res.ok) {
-      return { ok: false, resnetRunning: false };
+      return { ok: false, modelRunning: false, resnetRunning: false };
     }
-    return await res.json();
+    const data = await res.json();
+    const isRunning = Boolean(data.modelRunning ?? data.resnetRunning ?? data.ok);
+    return {
+      ...data,
+      ok: Boolean(data.ok),
+      modelRunning: isRunning,
+      resnetRunning: isRunning,
+    };
   } catch {
-    return { ok: false, resnetRunning: false };
+    return { ok: false, modelRunning: false, resnetRunning: false };
   }
 }
 
