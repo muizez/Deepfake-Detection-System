@@ -119,7 +119,7 @@ export function normalizeSeverity(raw?: string): 'low' | 'medium' | 'high' {
 
 export function normalizePredictionResult(
   raw: any = {},
-  modelUsed: string = 'ResNet-50 (resnet50-balanced-best)'
+  modelUsed: string = 'EfficientNet-B3 (efficientnet_b3_best.pth)'
 ): PredictionResult {
   const signals: PredictionSignals = {
     facialLipSync: clampPercentage(raw.signals?.facialLipSync ?? 50),

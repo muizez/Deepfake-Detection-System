@@ -40,7 +40,7 @@ export function InvestigationTable({ rows, onView }: InvestigationTableProps) {
         ))
       )}
       <p className="confidence-note">
-        * Confidence is calibrated using the 0.30 validation threshold of the balanced ResNet-50 model.
+        * Confidence is calibrated using the validation threshold of the EfficientNet-B3 model.
       </p>
     </div>
   );

@@ -7,6 +7,7 @@ from PIL import Image
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
+from torchvision.transforms import InterpolationMode
 import numpy as np
 
 try:
@@ -19,74 +20,188 @@ app = Flask(__name__)
 CORS(app)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_FILENAME = "resnet50-balanced-best.pth"
-MODEL_PATH = os.path.join(BASE_DIR, MODEL_FILENAME)
+
+# Default to EfficientNet-B3 as primary prediction model, while preserving ResNet-50 compatibility
+DEFAULT_MODEL_FILENAME = "efficientnet_b3_best.pth"
+MODEL_FILENAME = os.environ.get("MODEL_FILENAME", DEFAULT_MODEL_FILENAME)
+
+POSSIBLE_PATHS = [
+    os.path.join(BASE_DIR, MODEL_FILENAME),
+    os.path.join(BASE_DIR, "efficientnet_b3_best.pth"),
+    os.path.join(BASE_DIR, "EfficientNetB3.pth"),
+    os.path.join(BASE_DIR, "resnet50-balanced-best.pth"),
+    os.path.join(BASE_DIR, "EfficientNetB0.pth"),
+]
+
+MODEL_PATH = None
+for candidate in POSSIBLE_PATHS:
+    if os.path.exists(candidate):
+        MODEL_PATH = candidate
+        MODEL_FILENAME = os.path.basename(candidate)
+        break
+
+if not MODEL_PATH:
+    MODEL_PATH = os.path.join(BASE_DIR, MODEL_FILENAME)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Recreate the exact ResNet50 architecture used during balanced training
 model = None
 model_load_error = None
-model_threshold = 0.30  # Default validation threshold from training checkpoint
+model_threshold = 0.50
 model_metadata = {}
+model_display_name = "EfficientNet-B3"
+model_short_name = "EfficientNet-B3"
+fake_index = 0
+real_index = 1
+
+# Default transform matching EfficientNet-B3 evaluation
+eval_transform = transforms.Compose([
+    transforms.Resize(320, interpolation=InterpolationMode.BICUBIC),
+    transforms.CenterCrop(300),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
 
 def init_model():
     global model, model_load_error, model_threshold, model_metadata
-    try:
-        net = models.resnet50(weights=None)
-        num_features = net.fc.in_features
-        net.fc = nn.Linear(num_features, 2)
+    global model_display_name, model_short_name, fake_index, real_index, eval_transform
 
+    try:
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(
                 f"Model weights not found at '{MODEL_PATH}'. "
                 f"Ensure '{MODEL_FILENAME}' is present in the backend folder."
             )
 
-        checkpoint = torch.load(MODEL_PATH, map_location=device, weights_only=True)
-        if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
-            net.load_state_dict(checkpoint["model_state_dict"])
-            model_threshold = float(checkpoint.get("threshold", 0.30))
+        try:
+            from torch.torch_version import TorchVersion
+            with torch.serialization.safe_globals([TorchVersion]):
+                checkpoint = torch.load(MODEL_PATH, map_location=device, weights_only=True)
+        except (AttributeError, ImportError, TypeError):
+            try:
+                checkpoint = torch.load(MODEL_PATH, map_location=device, weights_only=False)
+            except TypeError:
+                checkpoint = torch.load(MODEL_PATH, map_location=device)
+
+        is_dict = isinstance(checkpoint, dict)
+        state_dict = checkpoint["model_state_dict"] if (is_dict and "model_state_dict" in checkpoint) else checkpoint
+
+        arch = ""
+        if is_dict:
+            arch = str(checkpoint.get("architecture", "")).lower()
+        if not arch:
+            lower_fname = MODEL_FILENAME.lower()
+            if "b3" in lower_fname:
+                arch = "efficientnet_b3"
+            elif "resnet" in lower_fname:
+                arch = "resnet50"
+            elif "b0" in lower_fname:
+                arch = "efficientnet_b0"
+
+        # Check classes and mapping
+        class_to_idx = {"FAKE": 0, "REAL": 1}
+        if is_dict and "class_to_idx" in checkpoint:
+            class_to_idx = {str(k): int(v) for k, v in checkpoint["class_to_idx"].items()}
+
+        fake_index = class_to_idx.get("FAKE", 0)
+        real_index = class_to_idx.get("REAL", 1)
+        num_classes = int(checkpoint.get("num_classes", 2)) if is_dict else 2
+
+        # 1. EfficientNet-B3 (Primary)
+        if "efficientnet_b3" in arch or "b3" in arch or "b3" in MODEL_FILENAME.lower():
+            net = models.efficientnet_b3(weights=None)
+            net.classifier[1] = nn.Linear(net.classifier[1].in_features, num_classes)
+            net.load_state_dict(state_dict)
+
+            input_size = int(checkpoint.get("input_size", 300)) if is_dict else 300
+            mean = tuple(checkpoint.get("mean", (0.485, 0.456, 0.406))) if is_dict else (0.485, 0.456, 0.406)
+            std = tuple(checkpoint.get("std", (0.229, 0.224, 0.225))) if is_dict else (0.229, 0.224, 0.225)
+
+            eval_transform = transforms.Compose([
+                transforms.Resize(320, interpolation=InterpolationMode.BICUBIC),
+                transforms.CenterCrop(input_size),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=mean, std=std)
+            ])
+
+            model_threshold = float(checkpoint.get("threshold", 0.50)) if is_dict else 0.50
+            model_display_name = f"EfficientNet-B3 ({MODEL_FILENAME})"
+            model_short_name = "EfficientNet-B3"
+
+        # 2. ResNet-50 (Retained for compatibility)
+        elif "resnet" in arch or "resnet" in MODEL_FILENAME.lower():
+            net = models.resnet50(weights=None)
+            num_features = net.fc.in_features
+            net.fc = nn.Linear(num_features, num_classes)
+            net.load_state_dict(state_dict)
+
+            eval_transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ])
+
+            model_threshold = float(checkpoint.get("threshold", 0.30)) if is_dict else 0.30
+            model_display_name = f"ResNet-50 ({MODEL_FILENAME})"
+            model_short_name = "ResNet-50"
+
+        # 3. EfficientNet-B0 (Fallback)
+        elif "b0" in arch or "b0" in MODEL_FILENAME.lower():
+            net = models.efficientnet_b0(weights=None)
+            net.classifier[1] = nn.Linear(net.classifier[1].in_features, num_classes)
+            net.load_state_dict(state_dict)
+
+            eval_transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ])
+
+            model_threshold = float(checkpoint.get("threshold", 0.50)) if is_dict else 0.50
+            model_display_name = f"EfficientNet-B0 ({MODEL_FILENAME})"
+            model_short_name = "EfficientNet-B0"
+
+        else:
+            # Generic attempt as EfficientNet-B3
+            net = models.efficientnet_b3(weights=None)
+            net.classifier[1] = nn.Linear(net.classifier[1].in_features, num_classes)
+            net.load_state_dict(state_dict)
+            model_display_name = f"EfficientNet-B3 ({MODEL_FILENAME})"
+            model_short_name = "EfficientNet-B3"
+
+        if is_dict:
             model_metadata = {
                 "epoch": checkpoint.get("epoch"),
+                "best_val_macro_f1": checkpoint.get("best_val_macro_f1"),
                 "best_val_loss": checkpoint.get("best_val_loss"),
-                "class_to_idx": checkpoint.get("class_to_idx", {"FAKE": 0, "REAL": 1}),
-                "architecture": checkpoint.get("architecture", "resnet50"),
+                "best_val_accuracy": checkpoint.get("best_val_accuracy"),
+                "class_to_idx": class_to_idx,
+                "architecture": arch or "efficientnet_b3",
+                "input_size": checkpoint.get("input_size", 300),
             }
-        elif isinstance(checkpoint, dict):
-            net.load_state_dict(checkpoint)
-        else:
-            raise ValueError("Unrecognized checkpoint format in .pth file.")
 
         net.to(device)
         net.eval()
         model = net
-        print(f"[ResNet50] Successfully loaded '{MODEL_FILENAME}' on {device}. Threshold: {model_threshold}")
+        print(f"[{model_short_name}] Successfully loaded '{MODEL_FILENAME}' on {device}. Threshold: {model_threshold}")
     except Exception as e:
         model_load_error = str(e)
-        print(f"[ResNet50] Failed to load model weights: {e}")
+        print(f"[Model Load Error] Failed to load model weights: {e}")
 
 init_model()
-
-# Standard ResNet evaluation transform matching training
-eval_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225]
-    )
-])
-
-# Class mapping matching training: index 0 = FAKE, index 1 = REAL
-CLASS_NAMES = ["FAKE", "REAL"]
 
 def analyze_image_tensor(tensor_img):
     with torch.no_grad():
         output = model(tensor_img)
         probabilities = torch.softmax(output, dim=1)
-        fake_prob = float(probabilities[0, 0].item())
-        real_prob = float(probabilities[0, 1].item())
+        fake_prob = float(probabilities[0, fake_index].item())
+        real_prob = float(probabilities[0, real_index].item())
     return fake_prob, real_prob
 
 def analyze_video_frames(video_path, num_frames=20):
@@ -156,7 +271,7 @@ def analyze_video_frames(video_path, num_frames=20):
             "category": "Facial Boundary Artifact" if item["fakeProb"] >= 0.80 else "Spatial Inconsistency",
             "severity": sev,
             "observation": (
-                f"ResNet-50 detected synthetic manipulation pattern on sampled frame "
+                f"{model_short_name} detected synthetic manipulation pattern on sampled frame "
                 f"(fake probability: {round(item['fakeProb'] * 100, 1)}%, "
                 f"real probability: {round(item['realProb'] * 100, 1)}%)."
             )
@@ -194,10 +309,12 @@ def analyze_video_frames(video_path, num_frames=20):
 def health():
     return jsonify({
         "ok": True,
-        "service": "ResNet-50 Deepfake Detection Backend",
+        "service": f"{model_short_name} Deepfake Detection Backend",
         "modelLoaded": model is not None,
         "modelFilename": MODEL_FILENAME,
         "modelPath": MODEL_PATH,
+        "modelDisplayName": model_display_name,
+        "architecture": model_metadata.get("architecture", "efficientnet_b3"),
         "threshold": model_threshold,
         "metadata": model_metadata,
         "device": str(device),
@@ -236,7 +353,7 @@ def predict():
             avg_fake = analysis["avgFake"]
             manipulation_prob = round(avg_fake * 100, 1)
 
-            # Decision threshold matching balanced training checkpoint (default 0.30 REAL threshold)
+            # Decision threshold matching model calibration
             if avg_real >= model_threshold:
                 verdict = "AUTHENTIC"
                 confidence = round(avg_real * 100, 1)
@@ -248,10 +365,10 @@ def predict():
             facial_lip_sync = round(max(0.0, min(100.0, avg_real * 100.0)), 1)
             temporal_coherence = round(max(0.0, min(100.0, 100.0 - (analysis["stdFake"] * 120.0))), 1)
             lighting_reflection = round(max(0.0, min(100.0, (avg_real * 0.9 + 0.1) * 100.0)), 1)
-            audio_visual_alignment = 50.0  # Visual CNN baseline
+            audio_visual_alignment = 50.0
 
             summary = (
-                f"ResNet-50 (resnet50-balanced-best) evaluated {analysis['frameCount']} sampled frames across the video. "
+                f"{model_display_name} evaluated {analysis['frameCount']} sampled frames across the video. "
                 f"Average authenticity probability measured {round(avg_real * 100, 1)}% against the {round(model_threshold * 100, 1)}% calibration threshold. "
                 f"Manipulation risk calculated at {manipulation_prob}% with an overall verdict of {verdict}."
             )
@@ -268,7 +385,7 @@ def predict():
                     "audioVisualAlignment": audio_visual_alignment,
                 },
                 "findings": analysis["findings"],
-                "modelUsed": "ResNet-50 (resnet50-balanced-best)",
+                "modelUsed": model_display_name,
                 "analyzedAt": datetime.now(timezone.utc).isoformat(),
             }
 
@@ -293,7 +410,7 @@ def predict():
                 "verdict": verdict,
                 "confidence": confidence,
                 "manipulationProbability": manipulation_prob,
-                "summary": f"Single-frame ResNet-50 evaluation completed. Real probability: {round(real_prob * 100, 1)}% (Threshold: {round(model_threshold * 100, 1)}%).",
+                "summary": f"Single-frame {model_display_name} evaluation completed. Real probability: {round(real_prob * 100, 1)}% (Threshold: {round(model_threshold * 100, 1)}%).",
                 "signals": {
                     "facialLipSync": round(real_prob * 100, 1),
                     "temporalCoherence": 50.0,
@@ -308,7 +425,7 @@ def predict():
                         "observation": f"Spatial CNN prediction indicates {verdict} classification ({manipulation_prob}% synthetic probability).",
                     }
                 ],
-                "modelUsed": "ResNet-50 (resnet50-balanced-best)",
+                "modelUsed": model_display_name,
                 "analyzedAt": datetime.now(timezone.utc).isoformat(),
             }
 
@@ -324,5 +441,5 @@ def predict():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    print(f"Starting ResNet-50 Backend on http://0.0.0.0:{port}")
+    print(f"Starting {model_short_name} Backend on http://0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=False)

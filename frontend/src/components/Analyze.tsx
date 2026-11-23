@@ -20,7 +20,7 @@ interface AnalyzeProps {
 const STAGES = [
   'Ingest & decode',
   'Frame extraction (20 keyframes)',
-  'Spatial ResNet-50 analysis',
+  'Spatial EfficientNet-B3 analysis',
   'Temporal coherence analysis',
   'Synthesis & threshold evaluation',
 ];
@@ -122,7 +122,7 @@ export function Analyze({
             <p>
               {prediction
                 ? prediction.summary
-                : 'ResNet-50 evaluating 224×224 normalized frame tensors across Celeb-DF v2 distribution.'}
+                : 'EfficientNet-B3 evaluating 300×300 normalized frame tensors across Celeb-DF v2 distribution.'}
             </p>
           </div>
           <div className="signal-bars">

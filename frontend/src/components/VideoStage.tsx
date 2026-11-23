@@ -54,7 +54,7 @@ export function VideoStage({
       )}
       <div className="video-hud">
         <span>{formatTimestamp(currentTime)}</span>
-        <span>{duration > 0 ? `${formatTimestamp(duration)} / 20 KEYFRAMES` : 'RESNET-50 / 224×224 RGB'}</span>
+        <span>{duration > 0 ? `${formatTimestamp(duration)} / 20 KEYFRAMES` : 'EFFICIENTNET-B3 / 300×300 RGB'}</span>
       </div>
       <button className="play-button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'}>
         <Icon name={playing ? 'pause' : 'play'} size={24} />
